@@ -1,22 +1,24 @@
 import os
 import pandas as pd
-import sqlite3 as sql
-import time
+import sqlite3
 import wget
+import zipfile
 
 def get_flights(year, month):
     urltext = series + '_%d_%d' %(year, month)
     flighturl = url + 'PREZIP/' + urltext + '.zip'
+    zippath = '/home/pohalloran/git/airline-delays/'
     datapath = '/home/pohalloran/git/airline-delays/data/'
 
     # Temporarily download and store a given year and month of data
     filename = wget.download(flighturl)
-    os.system('unzip ./' + filename + ' -d ' + datapath)
-    os.system('rm ' + filename)
-    os.system('rm ' + datapath + 'readme.html')
+    zf = zipfile.ZipFile(filename)
+    os.system('rm ' + zippath + filename)
 
     # Select columns and insert into SQL db
-    df = pd.read_csv(datapath + urltext + '.csv', dtype={'UniqueCarrier':str})
+    df = pd.read_csv(zf.open(urltext + '.csv'),
+                     dtype={'UniqueCarrier':str},
+                     encoding='latin-1')
     flightdf = pd.DataFrame({
         'Year':df.Year,
         'Quarter':df.Quarter,
@@ -47,7 +49,6 @@ def get_flights(year, month):
     flightdf.to_sql('flights', con, flavor='sqlite', schema=None, 
              if_exists='append', index=True, index_label=None,
              chunksize=None, dtype=None)
-    os.system('rm ' + datapath + '*.csv')
 
 ## set up scraping vars
 url = 'http://tsdata.bts.gov/'
@@ -55,10 +56,10 @@ series = 'On_Time_On_Time_Performance'
 
 ## init SQL connection
 db = './data/flights.db'
-con = sql.connect(db)
+con = sqlite3.connect(db)
 
 ## Extract and save data to SQL db
-for year in range(1987,2017):
+for year in range(2001,2017):
     if year==1987:
         for month in range(10,13):
             get_flights(year, month)
@@ -68,7 +69,6 @@ for year in range(1987,2017):
     else:
         for month in range(1, 13):
             get_flights(year, month)
-            time.sleep(60)
 
 ## Close SQL connection
 con.close()
